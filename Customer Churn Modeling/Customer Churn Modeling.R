@@ -26,7 +26,7 @@ test_set <- subset(dataset, split == FALSE)
 training_set[-11] <- scale(training_set[-11])
 test_set[-11] <- scale(test_set[-11])
 
-# ----- Artificial Neural Network
+# ----- 1/ Artificial Neural Network
 # Model
 library(h2o)
 h2o.init(nthreads = -1)    # connect to the system
@@ -56,3 +56,30 @@ cm
 
 # Disconnect H2O
 h2o.shutdown()
+
+
+# ----- 2/ XGBoost
+# Model
+library(xgboost)
+classifier <- xgboost(data = as.matrix(training_set[-11]),
+                      label = training_set$Exited,
+                      nrounds = 10)
+
+# Evluation with k fold cross validation
+library(caret)
+folds <- createFolds(training_set$Exited, k = 10)
+cv <- lapply(folds, function(x){
+  training_fold <- training_set[-x, ]
+  test_fold <- training_set[x, ]
+  classifier <- xgboost(data = as.matrix(training_set[-11]),
+                        label = training_set$Exited,
+                        nrounds = 10)
+  y_pred <- predict(classifier, newdata = as.matrix(test_fold[-11]))
+  y_pred <- (y_pred >= 0.5)
+  cm <- table(test_fold[, 11], y_pred)
+  accuracy <- (cm[1, 1] + cm[2, 2]) / (cm[1, 1] + cm[2, 2] + cm[1, 2] + cm[2, 1])
+  return(accuracy)
+})
+accuracy <- mean(as.numeric(cv))
+accuracy
+# 88%
